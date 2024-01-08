@@ -186,6 +186,8 @@ pub struct GooseConfiguration {
     /// Sets per-request timeout, in seconds (default: 60)
     #[options(no_short, meta = "VALUE")]
     pub timeout: Option<String>,
+    #[options(no_short)]
+    pub tcp_nodelay: bool,
     /// Sets coordinated omission mitigation strategy
     #[options(no_short, meta = "STRATEGY")]
     pub co_mitigation: Option<GooseCoordinatedOmissionMitigation>,
@@ -319,6 +321,8 @@ pub(crate) struct GooseDefaults {
     pub no_gzip: Option<bool>,
     /// An optional default number of seconds to timeout requests.
     pub timeout: Option<String>,
+    /// An optional default for setting TPC_NODELAY.
+    pub tcp_nodelay: Option<bool>,
     /// An optional default for coordinated omission mitigation.
     pub co_mitigation: Option<GooseCoordinatedOmissionMitigation>,
     /// An optional default to not track status code metrics.
@@ -421,6 +425,8 @@ pub enum GooseDefault {
     NoAutoStart,
     /// An optional default timeout for all requests, in seconds.
     Timeout,
+    /// An optional default for setting TCP_NODELAY.
+    TcpNoDelay,
     /// An optional default for not setting the gzip Accept-Encoding header.
     NoGzip,
     /// An optional default to not track status code metrics.
@@ -515,6 +521,7 @@ pub enum GooseDefault {
 ///  - [`GooseDefault::NoWebSocket`]
 ///  - [`GooseDefault::NoAutoStart`]
 ///  - [`GooseDefault::NoGzip`]
+///  - [`GooseDefault::TcpNoDelay`]
 ///  - [`GooseDefault::NoStatusCodes`]
 ///  - [`GooseDefault::StickyFollow`]
 ///  - [`GooseDefault::NoGranularData`]
@@ -615,6 +622,7 @@ impl GooseDefaultType<&str> for GooseAttack {
             | GooseDefault::NoWebSocket
             | GooseDefault::NoAutoStart
             | GooseDefault::NoGzip
+            | GooseDefault::TcpNoDelay
             | GooseDefault::NoStatusCodes
             | GooseDefault::StickyFollow
             | GooseDefault::NoGranularData
@@ -707,6 +715,7 @@ impl GooseDefaultType<usize> for GooseAttack {
             | GooseDefault::NoWebSocket
             | GooseDefault::NoAutoStart
             | GooseDefault::NoGzip
+            | GooseDefault::TcpNoDelay
             | GooseDefault::NoStatusCodes
             | GooseDefault::StickyFollow
             | GooseDefault::NoGranularData
@@ -766,6 +775,7 @@ impl GooseDefaultType<bool> for GooseAttack {
             GooseDefault::NoWebSocket => self.defaults.no_websocket = Some(value),
             GooseDefault::NoAutoStart => self.defaults.no_autostart = Some(value),
             GooseDefault::NoGzip => self.defaults.no_gzip = Some(value),
+            GooseDefault::TcpNoDelay => self.defaults.tcp_nodelay = Some(value),
             GooseDefault::AcceptInvalidCerts => self.defaults.accept_invalid_certs = Some(value),
             GooseDefault::NoStatusCodes => self.defaults.no_status_codes = Some(value),
             GooseDefault::StickyFollow => self.defaults.sticky_follow = Some(value),
@@ -864,6 +874,7 @@ impl GooseDefaultType<GooseCoordinatedOmissionMitigation> for GooseAttack {
             | GooseDefault::NoWebSocket
             | GooseDefault::NoAutoStart
             | GooseDefault::NoGzip
+            | GooseDefault::TcpNoDelay
             | GooseDefault::NoStatusCodes
             | GooseDefault::StickyFollow
             | GooseDefault::NoGranularData
@@ -965,6 +976,7 @@ impl GooseDefaultType<GooseLogFormat> for GooseAttack {
             | GooseDefault::NoWebSocket
             | GooseDefault::NoAutoStart
             | GooseDefault::NoGzip
+            | GooseDefault::TcpNoDelay
             | GooseDefault::NoStatusCodes
             | GooseDefault::StickyFollow
             | GooseDefault::NoGranularData
@@ -1743,6 +1755,24 @@ impl GooseConfiguration {
             ])
             .unwrap_or(false);
 
+        // Configure `tcp_nodelay`.
+        self.tcp_nodelay = self
+            .get_value(vec![
+                // Use --tcp-nodelay if set.
+                GooseValue {
+                    value: Some(self.tcp_nodelay),
+                    filter: !self.tcp_nodelay,
+                    message: "tcp_nodelay",
+                },
+                // Use GooseDefault if not already set and not Worker.
+                GooseValue {
+                    value: defaults.tcp_nodelay,
+                    filter: defaults.tcp_nodelay.is_none(),
+                    message: "tcp_nodelay",
+                },
+            ])
+            .unwrap_or(false);
+
         // Configure `accept_invalid_certs`
         self.accept_invalid_certs = self
             .get_value(vec![
@@ -2212,6 +2242,8 @@ mod test {
             .set_default(GooseDefault::NoAutoStart, true)
             .unwrap()
             .set_default(GooseDefault::NoGzip, true)
+            .unwrap()
+            .set_default(GooseDefault::TcpNoDelay, false)
             .unwrap()
             .set_default(GooseDefault::ReportFile, report_file.as_str())
             .unwrap()

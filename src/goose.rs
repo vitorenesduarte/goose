@@ -2314,6 +2314,7 @@ pub(crate) fn create_reqwest_client(
     Client::builder()
         .user_agent(APP_USER_AGENT)
         .cookie_store(true)
+        .tcp_nodelay(configuration.tcp_nodelay)
         .timeout(Duration::from_millis(timeout))
         // Enable gzip unless `--no-gzip` flag is enabled.
         .gzip(!configuration.no_gzip)
